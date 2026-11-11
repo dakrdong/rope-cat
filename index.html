@@ -746,6 +746,7 @@ const THEME = {
   jungle: { name: '정글', sky: ['#bfe3c0', '#e8f4c8'], ground: '#5f4c37', edge: '#3f3122', cap: '#3f9c4a', slip: '#9fd9c9' },
   city: { name: '도심', sky: ['#f6c9a6', '#ffe9c9'], ground: '#626a7d', edge: '#434959', cap: '#cdd3de', slip: '#bfe4ff' },
 };
+const SIDE = 200; // px at each side of the screen taken by the stick and the buttons
 const VIEW_H = 16; // tiles down the landscape screen
 const INK = '#3a2a22', ROPE = '#f2a23a', STEEL = '#dfe6ee', DANGER = '#e5484d', TOP = 84, PAD = 0, DEAD = 16;
 const IMG = {};
@@ -890,8 +891,9 @@ function draw(now) {
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const th = THEME[L.theme], p = S.p, ph = h - TOP - PAD;
   const scaleN = h / (VIEW_H * T), LW = L.w * T, LH = L.h * T;
-  const follow = (v, view, len) => len <= view ? len / 2 : Math.max(view / 2, Math.min(len - view / 2, v));
-  let camx = follow(p.x, w / scaleN, LW), camy = follow(p.y, ph / scaleN, LH); scale = scaleN;
+  // pad: the camera may slide this far past the level's edge, so the cat never ends up under the touch controls
+  const follow = (v, view, len, pad) => len + 2 * pad <= view ? len / 2 : Math.max(view / 2 - pad, Math.min(len - view / 2 + pad, v));
+  let camx = follow(p.x, w / scaleN, LW, PC ? 0 : SIDE / scaleN), camy = follow(p.y, ph / scaleN, LH, 0); scale = scaleN;
   if (L.race && introT < 3) { // race intro: the whole map first, then glide in to the cat
     const k = Math.max(0, Math.min(1, (introT - 1) / 2)), e = k * k * (3 - 2 * k), fit = Math.min(w / LW, ph / LH) * .96;
     scale = fit * Math.pow(scaleN / fit, e); camx = LW / 2 + (camx - LW / 2) * e; camy = LH / 2 + (camy - LH / 2) * e;
