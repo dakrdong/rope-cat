@@ -18,6 +18,7 @@ html,body{height:100%}
 body{background:var(--shade);color:var(--ink);font-family:var(--font);overflow:hidden;display:flex;align-items:center;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .stage{position:relative;width:100%;height:min(100%,56.25vw);overflow:hidden;background:var(--sky);touch-action:none}
+.stage.rot{position:fixed;top:0;left:100%;transform-origin:0 0;transform:rotate(90deg)}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .top{position:absolute;inset:0 0 auto;display:flex;flex-direction:column;gap:6px;padding-block:8px;pointer-events:none}
@@ -41,7 +42,7 @@ button:focus-visible{outline:3px solid var(--cat);outline-offset:2px}
 @media (hover:hover) and (pointer:fine){.stick,.btn{display:none}}
 .lockhint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);margin:0;padding:6px 14px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:.9rem;white-space:nowrap;pointer-events:none}
 .overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:safe center;gap:10px;padding-block:16px;overflow-y:auto;
-  background:color-mix(in srgb,var(--paper) 90%,transparent)}
+  background:color-mix(in srgb,var(--paper) 90%,transparent);touch-action:auto}
 .head{display:flex;align-items:center;gap:12px}
 .head img{width:64px;height:64px;object-fit:contain;flex:none}
 h1{font:400 2.3rem/1.05 var(--font);margin:0;color:var(--ink);text-wrap:balance}
@@ -761,7 +762,15 @@ let noLock = false; // the browser refused to capture the mouse
 const AIM_R = 70, locked = () => document.pointerLockElement === stage;
 document.addEventListener('pointerlockerror', () => { noLock = true; });
 let PC = matchMedia('(hover:hover) and (pointer:fine)').matches;
-const world = (cx, cy) => { const r = stage.getBoundingClientRect(); return [(cx - r.left - ox) / scale, (cy - r.top - oy) / scale]; };
+let rot = false; // phone held upright: the stage is turned 90 degrees so the game still fills the screen in landscape
+function fit() {
+  rot = innerHeight > innerWidth; stage.classList.toggle('rot', rot);
+  stage.style.width = rot ? innerHeight + 'px' : ''; stage.style.height = rot ? innerWidth + 'px' : '';
+}
+addEventListener('resize', fit); addEventListener('orientationchange', fit); fit();
+// pointer position in the stage's own (unrotated) frame
+const loc = e => { if (rot) return [e.clientY, innerWidth - e.clientX]; const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const world = (lx, ly) => [(lx - ox) / scale, (ly - oy) / scale];
 const keys = {};
 const PAR = [12, 20, 12, 18, 28, 16, 20, 28, 16, 24, 16, 24, 20, 30, 24, 24, 24, 30, 36, 40]; // seconds for 3 stars; twice that for 2; any clear is 1
 const UPS = [['reel', '감기·풀기 속도', '줄을 감고 푸는 속도 +10%'], ['swing', '반동 힘', '매달려 흔드는 힘 +8%'], ['jump', '점프 높이', '점프하는 힘 +4%'],
@@ -1053,7 +1062,7 @@ const inEl = (id, e, grow) => { const b = $(id).getBoundingClientRect(); return 
 const blink = id => { $(id).classList.add('on'); setTimeout(() => $(id).classList.remove('on'), 130); };
 const act = () => { if (S.rope) retract(); else jump(); }; // second button: take the rope back, or jump when standing without one
 function stickMove(e) { // the stick always points the shot; its x and y also drive swing/walk and reel
-  const dx = e.clientX - stickP.x, dy = e.clientY - stickP.y, d = Math.hypot(dx, dy), k = Math.min(1, d / 44) / (d || 1);
+  const [lx, ly] = loc(e), dx = lx - stickP.x, dy = ly - stickP.y, d = Math.hypot(dx, dy), k = Math.min(1, d / 44) / (d || 1);
   stickP.nx = dx * k; stickP.ny = dy * k;
   if (d >= DEAD) aim = { x: dx, y: dy };
   knob(dx, dy, 44);
@@ -1070,14 +1079,14 @@ stage.addEventListener('pointerdown', e => {
     if (e.button === 2) act();
     else if (e.button !== 0) return;
     else if (locked()) fire(aim.x, aim.y);
-    else { const [wx, wy] = world(e.clientX, e.clientY); fire(wx - S.p.x, wy - S.p.y); } // lock refused: shoot at the cursor instead
+    else { const [wx, wy] = world(...loc(e)); fire(wx - S.p.x, wy - S.p.y); } // lock refused: shoot at the cursor instead
     return;
   }
   if (inEl('fire', e, 10)) { blink('fire'); if (!S.dead) fire(aim.x, aim.y); return; }
   if (inEl('act', e, 8)) { blink('act'); act(); return; }
-  const r = stage.getBoundingClientRect();
-  if (e.clientX - r.left >= r.width / 2 || stickP) return;
-  stickP = { id: e.pointerId, x: e.clientX, y: e.clientY, nx: 0, ny: 0 };
+  const [lx, ly] = loc(e);
+  if (lx >= cv.clientWidth / 2 || stickP) return;
+  stickP = { id: e.pointerId, x: lx, y: ly, nx: 0, ny: 0 };
   stage.setPointerCapture(e.pointerId);
 });
 stage.addEventListener('pointermove', e => {
@@ -1085,7 +1094,7 @@ stage.addEventListener('pointermove', e => {
     if (locked()) { // the aim turns toward the way the mouse is moving, like a stick pushed by the hand
       aim = { x: aim.x + e.movementX, y: aim.y + e.movementY };
       const d = Math.hypot(aim.x, aim.y); if (d > AIM_R) { aim.x *= AIM_R / d; aim.y *= AIM_R / d; }
-    } else mouse = { x: e.clientX, y: e.clientY };
+    } else { const [x, y] = loc(e); mouse = { x, y }; }
     return;
   }
   if (stickP && e.pointerId === stickP.id) stickMove(e);
