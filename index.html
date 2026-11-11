@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>로프 탈출</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<style>
+/* layout: one landscape stage (16:9 band on tall screens, full screen when wider); HUD on top, tip under it; left thumb: one stick (aim + move), right thumb: fire and retract/jump buttons */
+:root{
+  --paper:#fffaf0; --ink:#3a2a22; --soft:#7a6558; --cat:#ff8a3d; --leaf:#3fa55b; --sky:#bfe6ff; --line:#e7d8c2; --shade:#1d2b3a;
+  --font:'Jua','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--shade);color:var(--ink);font-family:var(--font);overflow:hidden;display:flex;align-items:center;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.stage{position:relative;width:100%;height:min(100%,56.25vw);overflow:hidden;background:var(--sky);touch-action:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{position:absolute;inset:0 0 auto;display:flex;flex-direction:column;gap:6px;padding-block:8px;pointer-events:none}
+.hud{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.hud .name{background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:4px 12px;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hud .time{background:var(--ink);color:var(--paper);border-radius:999px;padding:4px 10px;font-size:.95rem}
+.par{margin-right:auto;font-size:.8rem;background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.gauge{display:flex;align-items:center;gap:4px;font-size:.85rem;background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:3px 8px}
+.gauge b{display:block;width:44px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.gauge i{display:block;height:100%;width:0;background:var(--cat)}
+button{font:1rem var(--font);color:var(--ink);background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:6px 12px;cursor:pointer;pointer-events:auto}
+button:focus-visible{outline:3px solid var(--cat);outline-offset:2px}
+.tip{margin:0;background:color-mix(in srgb,var(--paper) 92%,transparent);border:2px solid var(--line);border-radius:12px;padding:8px 12px;font-size:.92rem;line-height:1.4}
+.stick,.btn{position:absolute;pointer-events:none;border:2px solid var(--ink);background:color-mix(in srgb,var(--paper) 55%,transparent);border-radius:50%}
+.stick{left:max(16px,env(safe-area-inset-left,0px));bottom:16px;width:136px;height:136px}
+.knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:var(--cat);border:2px solid var(--ink)}
+.btn{display:grid;place-items:center;font-size:1rem}
+.btn.on{background:var(--ink);color:var(--paper)}
+.fire{right:max(16px,env(safe-area-inset-right,0px));bottom:18px;width:92px;height:92px;background:var(--cat);font-size:1.15rem}
+.act{right:calc(max(16px,env(safe-area-inset-right,0px)) + 86px);bottom:98px;width:68px;height:68px}
+@media (hover:hover) and (pointer:fine){.stick,.btn{display:none}}
+.lockhint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);margin:0;padding:6px 14px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:.9rem;white-space:nowrap;pointer-events:none}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:safe center;gap:10px;padding-block:16px;overflow-y:auto;
+  background:color-mix(in srgb,var(--paper) 90%,transparent)}
+.head{display:flex;align-items:center;gap:12px}
+.head img{width:64px;height:64px;object-fit:contain;flex:none}
+h1{font:400 2.3rem/1.05 var(--font);margin:0;color:var(--ink);text-wrap:balance}
+h2{font:400 1.2rem/1.2 var(--font);margin:4px 0 -4px;color:var(--ink)}
+.sub{margin:4px 0 0;color:var(--soft);font-size:1rem;line-height:1.35}
+.head #shopbtn,.head #shopreset{margin-left:auto;background:var(--cat);white-space:nowrap}
+.levels small{font-size:.8rem;color:var(--cat);letter-spacing:.05em}
+#shop,#skinshop{background:var(--paper)}
+.head #skinclose{margin-left:auto}
+.head #skinbtn{background:var(--leaf);color:var(--paper);white-space:nowrap}
+.skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
+.skin{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:8px;min-width:0;text-align:center}
+.skin.cur{border-color:var(--cat);box-shadow:0 0 0 2px var(--cat)}
+.skin img{width:76px;height:76px;object-fit:contain}
+.skin b{font-weight:400;font-size:.9rem}
+.ups{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
+.up{display:flex;align-items:center;gap:10px;background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:8px 10px;min-width:0}
+.up div{display:flex;flex-direction:column;min-width:0;flex:1}
+.up b{font-weight:400;font-size:1.05rem;white-space:nowrap} .up span{font-size:.78rem;color:var(--soft)}
+.up .pips{font-style:normal;font-size:.7rem;letter-spacing:.05em;white-space:nowrap}
+.up .pips u{text-decoration:none} .pips .t1{color:var(--cat)} .pips .t2{color:var(--leaf)} .pips .t3{color:#3b82d6} .pips .t4{color:#b04ad8}
+.up button{white-space:nowrap} button:disabled{opacity:.45;cursor:default}
+.levels{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.levels button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;text-align:left;min-width:0;border-left-width:8px}
+.levels b{font-weight:400;font-size:1.25rem}
+.levels span{font-size:.78rem;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#resume{align-self:flex-start;background:var(--leaf);color:var(--paper);font-size:1.1rem;padding:8px 18px}
+.levels button.next{background:var(--cat)} .levels button.next span{color:var(--ink)}
+.how{margin:0;color:var(--soft);font-size:.85rem;line-height:1.5}
+</style>
+
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="cv"></canvas>
+  <div class="top gutter" id="top" hidden>
+    <div class="hud"><span class="name" id="lname"></span><span class="time" id="time">0.0</span><span class="gauge" title="밧줄 길이">줄<b><i id="gauge"></i></b></span><span class="par" id="par"></span>
+      <button id="retry">다시</button><button id="menu">레벨</button></div>
+    <p class="tip" id="tip"></p>
+  </div>
+  <p class="lockhint" id="lockhint" hidden>화면을 클릭하면 마우스 조준 시작 · Esc: 메뉴</p>
+  <div class="stick" id="stick" hidden><i class="knob" id="stickknob"></i></div>
+  <div class="btn act" id="act" hidden>점프</div>
+  <div class="btn fire" id="fire" hidden>발사</div>
+  <div class="overlay gutter" id="ov">
+    <div class="head"><img id="hero" src="art/cat_idle.png" alt=""><div><h1 id="ovt">로프 탈출</h1><p class="sub" id="ovs"></p></div><button id="shopbtn">강화 상점 ★<span id="stars">0</span></button><button id="skinbtn">스킨 상점</button></div>
+    <button id="resume" hidden>계속하기</button>
+    <h2>퍼즐 스테이지</h2>
+    <div class="levels" id="levels"></div>
+    <h2>레이스 스테이지</h2>
+    <div class="levels" id="races"></div>
+    <p class="how">모바일(가로) · 왼쪽 조이스틱: 가리키는 쪽이 발사 방향. 매달려 있으면 좌우 반동·위아래 감기/풀기, 땅에서는 좌우 걷기 · 오른쪽: 발사, 회수(줄이 없고 땅에 있으면 점프)<br>레이스 스테이지 · 큰 맵에서 구슬 1 → 2 → 3을 순서대로 먹는 기록 경쟁, 장치 없음<br>PC · 화면을 클릭하면 마우스가 잡히고, 마우스를 움직이는 방향이 발사 방향 · 왼쪽 클릭: 발사, 오른쪽 클릭·스페이스: 회수/점프, W/S 감기·풀기, A/D 반동·걷기, R: 다시, Esc: 메뉴(마우스 풀림)</p>
+  </div>
+  <div class="overlay gutter" id="skinshop" hidden>
+    <div class="head"><div><h1>스킨 상점</h1><p class="sub" id="skinsub"></p></div><button id="skinclose">닫기</button></div>
+    <div class="skins" id="skinlist"></div>
+  </div>
+  <div class="overlay gutter" id="shop" hidden>
+    <div class="head"><div><h1>강화 상점</h1><p class="sub" id="shopsub"></p></div><button id="shopreset">별 돌려받기</button><button id="shopclose">닫기</button></div>
+    <div class="ups" id="ups"></div>
+  </div>
+</div>
+
+<script>
+/*SIM*/
+const T = 32, G = 1800, HS = 9, DT = 1 / 120, VMAX = 1300;
+const REEL_KICK = 1.7; // >1: reeling in while swinging whips the cat faster than plain physics would
+const FLING = 1.3;     // speed multiplier when the rope is let go in the middle of reeling in
+const WALL_BOUNCE = .85; // share of sideways speed kept when a roped cat bounces off a wall
+const SPEED = .75; // whole-world time scale: same arcs and reach, just slower, so it is easier to control
+// Upgrade levels (0..10) bought in the store; applyUp turns them into the numbers the physics uses.
+const UP = { reel: 0, swing: 0, jump: 0, walk: 0, shot: 0, len: 0, resist: 0 };
+let MAXR, REEL_IN, REEL_OUT, SWING, WALK, JUMP, SHOT, OUCH;
+function applyUp() {
+  MAXR = 7 * T * (1 + .04 * UP.len);          // rope length
+  REEL_IN = 115 * (1 + .1 * UP.reel);         // hauling the cat up is slow...
+  REEL_OUT = 230 * (1 + .1 * UP.reel);        // ...gravity pays the rope out fast
+  SWING = 380 * (1 + .08 * UP.swing);         // swinging only nudges; momentum builds over swings
+  WALK = 90 * (1 + .1 * UP.walk);
+  JUMP = 520 * (1 + .04 * UP.jump);
+  OUCH = 620 * (1 + .08 * UP.resist);        // sideways speed into a wall the roped cat can take before it lets go
+  SHOT = 800 * (1 + .15 * UP.shot);           // how fast the hook flies out
+}
+applyUp();
+const SOLID = '#ICMAV<>', HOOK = '#CAV<>', CORN = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+const BOX = [...CORN, [0, -1], [0, 1], [-1, 0], [1, 0]], AMP = 13;
+const RING = [5, 9, 14].flatMap(r => Array.from({ length: 16 }, (_, k) => [Math.cos(k * Math.PI / 8) * r, Math.sin(k * Math.PI / 8) * r]));
+// # ground  I slippery (no hook)  C crumbles when hooked  M bouncy mushroom  A V < > razor blade: thin strip, only the end it points to (up/down/left/right) is sharp
+// Ground (#) and slippery walls (I) are only a coarse sketch: buildTerrain turns them into bumpy, rounded land.
+// ^ floor spikes  x thorn ball  u l r wind  S start  G goal ; rings: [x0,y0,x1,y1,period] in tiles
+const LEVELS = [
+  { name: "천장 타기", theme: 'meadow', tip: "조이스틱으로 방향을 가리키고 발사 버튼으로 천장에 밧줄을 걸어요. 매달린 채 조이스틱 좌우로 반동을 키우고 회수 버튼으로 줄을 놓아, 날아가며 다시 걸어 오른쪽 깃발까지!", pc: "마우스를 움직이는 쪽으로 조준선이 돌아가요. 왼쪽 클릭으로 천장에 밧줄을 걸고 A/D로 반동을 키워요. 오른쪽 클릭으로 줄을 놓고, 날아가며 다시 걸어 오른쪽 깃발까지!", rows: [
+    "########################",
+    "#......................#",
+    "#......................#",
+    "#.........####.........#",
+    "#......................#",
+    "#......................#",
+    "#.S..................G.#",
+    "####...............#####",
+    "####......####.....#####",
+    "####.....######....#####",
+    "####.....######....#####",
+    "########################"] },
+  { name: "감아 오르기", theme: 'meadow', tip: "밧줄을 건 뒤 조이스틱을 위로 밀고 있으면 줄을 감아 올라가요. 줄 길이에는 한계가 있으니 벽과 턱을 징검다리로 써요.", pc: "밧줄을 걸고 W를 누르고 있으면 줄을 감아 올라가요. 줄 길이에는 한계가 있으니 벽과 턱을 징검다리로 써요.", rows: [
+    "###########",
+    "#....G....#",
+    "#.........#",
+    "#.........#",
+    "#.......###",
+    "#.........#",
+    "#.........#",
+    "###.......#",
+    "#.........#",
+    "#.........#",
+    "#.......###",
+    "#.........#",
+    "#.........#",
+    "#....S....#",
+    "###########"] },
+  { name: "살금살금 하강", theme: 'meadow', tip: "떠 있는 바위에 건 뒤 조이스틱을 아래로 밀고 있으면 줄이 풀려 천천히 내려가요.", pc: "떠 있는 바위에 건 뒤 S를 누르고 있으면 줄이 풀려 천천히 내려가요.", rows: [
+    "#############",
+    "#S..........#",
+    "####........#",
+    "#...........#",
+    "#.....##....#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#.....G.....#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#...........#",
+    "#############"] },
+  { name: "모서리 감기", theme: 'meadow', tip: "줄은 모서리에 감겨요. 벽에 걸고 올라간 뒤 천장으로 갈아타 넘어가요.", pc: "줄은 모서리에 감겨요. 벽에 걸고 올라간 뒤 천장으로 갈아타 넘어가요.", rows: [
+    "###############",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#......#......#",
+    "#......#......#",
+    "#......#......#",
+    "#......#......#",
+    "#......#......#",
+    "#.S....#....G.#",
+    "###############"] },
+  { name: "졸업 코스", theme: 'meadow', tip: "배운 걸 모두 써서 깃발까지! 화살표가 골 방향을 알려줘요.", rows: [
+    "####################",
+    "#..................#",
+    "#..................#",
+    "#..................#",
+    "#..................#",
+    "#..................#",
+    "#........####......#",
+    "#........####......#",
+    "#........####.....G#",
+    "#........####..#####",
+    "#S.......####..#####",
+    "####.....####..#####",
+    "####################"] },
+  { name: "가시밭", theme: 'mountain', tip: "여기부터 방해 장치! 가시에 닿으면 처음부터 다시 시작해요.", rows: [
+    "####################",
+    "#..................#",
+    "#..................#",
+    "#.......x..........#",
+    "#..................#",
+    "#............x.....#",
+    "#..................#",
+    "#S................G#",
+    "###............#####",
+    "###^^^^^^^^^^^^#####",
+    "####################"] },
+  { name: "칼날 바위", theme: 'mountain', tip: "면도날은 빨간 끝만 날이에요. 날 끝에 줄이 닿으면 잘리고, 고양이가 닿으면 처음부터! 옆면은 벽처럼 걸어도 괜찮아요.", rows: [
+    "######################",
+    "#....................#",
+    "#.........##.........#",
+    "#.........##.........#",
+    "#.........VV.........#",
+    "#.........VV.........#",
+    "#....................#",
+    "#S..................G#",
+    "####.............#####",
+    "####^^^^^^^^^^^^^#####",
+    "######################"] },
+  { name: "빙벽", theme: 'mountain', tip: "얼음에는 갈고리가 걸리지 않아요. 바위를 찾아 걸어요.", rows: [
+    "#############",
+    "#.....G.....#",
+    "#...........#",
+    "I...........I",
+    "I...........I",
+    "I.......##..I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I....##.....I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I........##.I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I....S......I",
+    "#############"] },
+  { name: "썩은 나무", theme: 'jungle', tip: "썩은 나무는 1초쯤 매달리면 부서져요. 서둘러 다음 나무로!", rows: [
+    "IIIIIIIIIIIIIIIIIIIIIIII",
+    "I......................I",
+    "I......................I",
+    "I.....C.....C.....C....I",
+    "I......................I",
+    "I......................I",
+    "I......................I",
+    "I......................I",
+    "IS....................GI",
+    "###..................###",
+    "###^^^^^^^^^^^^^^^^^^###",
+    "########################"] },
+  { name: "버섯 점프", theme: 'jungle', tip: "버섯을 밟으면 높이 튀어 올라요. 꼭대기에서 바위를 노려요.", rows: [
+    "IIIIIIIIIIIII",
+    "I...........I",
+    "I.......####I",
+    "I.........G.I",
+    "I...........I",
+    "I...........I",
+    "I...##......I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I.....##....I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I...........I",
+    "I.S.........I",
+    "I...........I",
+    "IMMMMMMMMMMMI",
+    "#############"] },
+  { name: "환풍기 바람", theme: 'city', tip: "환풍기 바람 기둥에 들어가면 둥실 떠올라요. 유리에는 줄이 안 걸려요.", rows: [
+    "IIIIIII###IIIII",
+    "I.........G...I",
+    "I........#####I",
+    "I.............I",
+    "I.............I",
+    "I.............I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I..uuu........I",
+    "I.Suuu........I",
+    "###############"] },
+  { name: "드론 택시", theme: 'city', tip: "드론에 달린 고리에 걸면 태워 줘요. 다음 드론으로 갈아타요.", rings: [[5, 5, 12, 5, 5], [21, 5, 14, 5, 5]], rows: [
+    "IIIIIIIIIIIIIIIIIIIIIIIIII",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "I........................I",
+    "IS......................GI",
+    "###....................###",
+    "###^^^^^^^^^^^^^^^^^^^^###",
+    "##########################"] },
+  { name: "돌풍 계곡", theme: 'mountain', tip: "옆바람이 왼쪽으로 밀어내요. 줄을 짧게 감고 힘껏 반동을 줘서 뚫고 지나가요.", rows: [
+    "##########################",
+    "#........llllll..........#",
+    "#........llllll..........#",
+    "#........llllll..........#",
+    "#........llllll..........#",
+    "#........llllll..........#",
+    "#........llllll..........#",
+    "#S.......llllll.........G#",
+    "####..................####",
+    "####^^^^^^^^^^^^^^^^^^####",
+    "##########################"] },
+  { name: "칼날 굴뚝", theme: 'mountain', tip: "턱 밑에 면도날이 매달려 있어요. 빨간 날 끝에 줄도 몸도 닿지 않게 올라가요.", rows: [
+    "#############",
+    "#.....G.....#",
+    "#...........#",
+    "#...........#",
+    "#........####",
+    "#........VVV#",
+    "#...........#",
+    "####........#",
+    "#VVV........#",
+    "#...........#",
+    "#........####",
+    "#...........#",
+    "#...........#",
+    "#.....S.....#",
+    "#############"] },
+  { name: "무너지는 다리", theme: 'jungle', tip: "썩은 나무 다섯 개를 징검다리로! 가시공을 피해 멈추지 말고 건너가요.", rows: [
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+    "I............................I",
+    "I............................I",
+    "I....C....C....C....C....C...I",
+    "I............................I",
+    "I........x.........x.........I",
+    "I............................I",
+    "IS..........................GI",
+    "###........................###",
+    "###^^^^^^^^^^^^^^^^^^^^^^^^###",
+    "##############################"] },
+  { name: "버섯 협곡", theme: 'jungle', tip: "버섯에서 버섯으로 튀어 건너가요. 사이사이 가시에 떨어지지 않게 바위에 줄을 걸어요.", rows: [
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIII",
+    "I..........................I",
+    "I......##..........##......I",
+    "I..........................I",
+    "I..........................I",
+    "I..........................I",
+    "I..........................I",
+    "I..........................I",
+    "IS........................GI",
+    "###MMM^^^^MMM^^^^MMM^^^^^###",
+    "############################"] },
+  { name: "바람 굴뚝", theme: 'city', tip: "양옆 환풍기 바람을 타고 올라가요. 가운데 발판 밑에는 면도날이 매달려 있어요.", rows: [
+    "IIIIIIIIIIIII",
+    "I.....G.....I",
+    "I...........I",
+    "I...#####...I",
+    "I...VVVVV...I",
+    "I...........I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu...uuu.I",
+    "I.uuu.S.uuu.I",
+    "#############"] },
+  { name: "드론 환승", theme: 'city', tip: "드론 세 대를 차례로 갈아타요. 다음 드론이 가까이 올 때를 기다려요.", rings: [[5, 5, 11, 5, 5], [19, 5, 13, 5, 5], [21, 5, 27, 5, 5]], rows: [
+    "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "I................................I",
+    "IS..............................GI",
+    "###............................###",
+    "###^^^^^^^^^^^^^^^^^^^^^^^^^^^^###",
+    "##################################"] },
+  { name: "얼음 절벽", theme: 'mountain', tip: "얼음 절벽에 걸 곳은 바위와 썩은 나무뿐이에요. 순서를 잘 골라요.", rows: [
+    "IIIIIIIIIIIIIIIIIIIIII",
+    "I....................I",
+    "I...............#####I",
+    "I.................G..I",
+    "I....................I",
+    "I..........C.........I",
+    "I....................I",
+    "I....................I",
+    "I.......##...........I",
+    "I....................I",
+    "I....................I",
+    "I...........C........I",
+    "I....................I",
+    "I....................I",
+    "I.S..................I",
+    "######################"] },
+  { name: "정상", theme: 'mountain', tip: "마지막 등반! 버섯, 가시공, 썩은 나무, 칼날을 모두 지나 꼭대기 깃발까지.", rows: [
+    "###############",
+    "#......G......#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "###.........###",
+    "#VV.........VV#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#.....CC......#",
+    "#.............#",
+    "#.............#",
+    "#.............#",
+    "#..x.......x..#",
+    "#.............#",
+    "#.............#",
+    "#......S......#",
+    "#MMMMMMMMMMMMM#",
+    "###############"] },
+  // Race stages: no rows here; genRace builds a big winding map with three numbered orbs from the seed.
+  { name: '초원 한 바퀴', theme: 'meadow', race: true, seed: 11, gw: 72, gh: 32, tip: '구슬을 1 → 2 → 3 순서로 먹으면 끝! 화살표가 다음 구슬 방향을 알려줘요.' },
+  { name: '설산 종주', theme: 'mountain', race: true, seed: 23, gw: 76, gh: 34, tip: '구슬을 1 → 2 → 3 순서로 먹으면 끝! 화살표가 다음 구슬 방향을 알려줘요.' },
+  { name: '정글 탐험', theme: 'jungle', race: true, seed: 37, gw: 80, gh: 36, tip: '구슬을 1 → 2 → 3 순서로 먹으면 끝! 화살표가 다음 구슬 방향을 알려줘요.' },
+  { name: '도심 질주', theme: 'city', race: true, seed: 52, gw: 84, gh: 36, tip: '구슬을 1 → 2 → 3 순서로 먹으면 끝! 화살표가 다음 구슬 방향을 알려줘요.' },
+];
+
+let L, S;
+function setLevel(i) {
+  if (L && L !== LEVELS[i]) L.F = L.K = L.cv = null; // big maps: keep only the current level's terrain in memory
+  L = LEVELS[i]; L.i = i; if (L.race && !L.rows) genRace(L); L.h = L.rows.length; L.w = L.rows[0].length; L.blades = []; L.rings = L.rings || [];
+  L.rows.forEach((r, y) => [...r].forEach((c, x) => {
+    const X = x * T, Y = y * T;
+    if (c === 'S') L.start = { x: X + T / 2, y: Y + T - HS - 1 };
+    if (c === 'G') L.goal = { x: X + T / 2, y: Y + T / 2 };
+    const dir = { A: [0, -1], V: [0, 1], '<': [-1, 0], '>': [1, 0] }[c]; // razor blade pointing that way
+    if (dir && (L.rows[y + dir[1]] || '')[x + dir[0]] !== c) { // last tile of the strip: its short end is the only sharp part
+      const [ux, uy] = dir, tx = X + T / 2 + ux * T / 2, ty = Y + T / 2 + uy * T / 2, a = -3, b = 5; // from 3px inside the end to 5px past it
+      L.blades.push(ux ? [Math.min(tx + a * ux, tx + b * ux), ty - 4, Math.max(tx + a * ux, tx + b * ux), ty + 4]
+        : [tx - 4, Math.min(ty + a * uy, ty + b * uy), tx + 4, Math.max(ty + a * uy, ty + b * uy)]);
+    }
+  }));
+  if (L.orbs) L.goal = L.orbs[L.orbs.length - 1];
+  if (!L.F) buildTerrain(L);
+  S = null; reset();
+  while (boxHit()) { L.start.y -= 2; S.p.y = L.start.y; } // never spawn inside a bump
+}
+
+// Race map: noise caves on the tile grid (buildTerrain then rounds and bends them), a start on solid ground in the
+// biggest connected cave, and three orbs spread as far from the start and from each other as the cave allows.
+function genRace(L) {
+  const w = L.gw, h = L.gh, sd = L.seed, open = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++)
+    open[y * w + x] = vnoise(x / 9, y / 6.5, sd) * .62 + vnoise(x / 4.3, y / 3.6, sd + 1) * .38 < .52 ? 1 : 0;
+  const ok = i => open[i] && open[i + 1] && open[i + w] && open[i + w + 1]; // a 2x2 pocket the cat fits through
+  const flood = src => { const d = new Int32Array(w * h).fill(-1), q = [src]; d[src] = 0;
+    for (let k = 0; k < q.length; k++) for (const n of [q[k] + 1, q[k] - 1, q[k] + w, q[k] - w]) if (d[n] < 0 && ok(n)) { d[n] = d[q[k]] + 1; q.push(n); }
+    return [d, q]; };
+  let cells = [], seen = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (!seen[i] && ok(i)) { const q = flood(i)[1]; for (const c of q) seen[c] = 1; if (q.length > cells.length) cells = q; }
+  let start = cells[0];
+  for (const c of cells) if ((!open[c + 2 * w] || !open[c + 2 * w + 1]) && (c % w < start % w || open[start + 2 * w] && open[start + 2 * w + 1])) start = c;
+  const far = (...fs) => { let best = cells[0], bv = -1; for (const c of cells) { const v = Math.min(...fs.map(f => f[c])); if (v > bv) { bv = v; best = c; } } return best; };
+  const ds = flood(start)[0], o1 = far(ds), d1 = flood(o1)[0], o2 = far(ds, d1), d2 = flood(o2)[0], o3 = far(ds, d1, d2);
+  L.par = Math.max(30, Math.round((ds[o1] + d1[o2] + d2[o3]) * .5 / 5) * 5); // 3-star time from the route length
+  const g = Array.from(open, v => v ? '.' : '#');
+  for (const o of [o1, o2, o3]) for (const c of [o, o + 1, o + w, o + w + 1]) g[c] = 'o'; // keeps the land calm around each orb
+  g[start + w] = 'S';
+  L.rows = Array.from({ length: h }, (_, y) => g.slice(y * w, y * w + w).join(''));
+  L.orbs = [o1, o2, o3].map(c => ({ x: (c % w + 1) * T, y: (Math.floor(c / w) + 1) * T }));
+}
+
+function hash(i, j, k) { let h = (i * 374761393 + j * 668265263 + k * 1274126177) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise(x, y, k) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash(xi, yi, k), b = hash(xi + 1, yi, k), c = hash(xi, yi + 1, k), d = hash(xi + 1, yi + 1, k);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+// Land as a per-pixel density field: the tile sketch is blurred (rounded corners) and sampled through a noise warp
+// (hills, bulges, overhangs). L.F > .5 is solid, L.K marks slippery material. Near devices, start and goal the warp
+// fades out so spikes, blades and ledges still sit exactly on the ground.
+function buildTerrain(L) {
+  const pw = L.pw = L.w * T, ph = L.h * T, gw = L.w + 2, n = gw * (L.h + 2);
+  const G = new Float32Array(n), I = new Float32Array(n), D = new Float32Array(n);
+  const ch = (cx, cy) => { const r = L.rows[cy]; return r && cx >= 0 && cx < L.w ? r[cx] : '#'; };
+  for (let cy = -1; cy <= L.h; cy++) for (let cx = -1; cx <= L.w; cx++) {
+    const i = (cy + 1) * gw + cx + 1, c = ch(cx, cy);
+    G[i] = c === '#' ? 1 : 0; I[i] = c === 'I' ? 1 : 0; D[i] = 1;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (!'#I.'.includes(ch(cx + a, cy + b))) D[i] = 0;
+  }
+  const bil = (A, x, y) => {
+    const u = x / T - .5, v = y / T - .5, x0 = Math.max(-1, Math.min(L.w - 1, Math.floor(u))), y0 = Math.max(-1, Math.min(L.h - 1, Math.floor(v)));
+    const fx = u - x0, fy = v - y0, i = (y0 + 1) * gw + x0 + 1;
+    return A[i] * (1 - fx) * (1 - fy) + A[i + 1] * fx * (1 - fy) + A[i + gw] * (1 - fx) * fy + A[i + gw + 1] * fx * fy;
+  };
+  const F = L.F = new Float32Array(pw * ph), K = L.K = new Uint8Array(pw * ph), sd = L.i * 7 + 1;
+  for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+    const d = bil(D, x + .5, y + .5) * AMP; let wx = x + .5, wy = y + .5;
+    if (d > .01) {
+      wx += ((vnoise(x / 70, y / 70, sd) - .5) * 2 + (vnoise(x / 24, y / 24, sd + 1) - .5) * .7) * d;
+      wy += ((vnoise(x / 70, y / 70, sd + 2) - .5) * 2 + (vnoise(x / 24, y / 24, sd + 3) - .5) * .7) * d;
+      wy += (vnoise(x / 130, 0, sd + 4) - .5) * 3.4 * d; // long rolling hills: floors and ceilings rise and dip together
+    }
+    const g = bil(G, wx, wy), ic = bil(I, wx, wy), i = y * pw + x;
+    F[i] = g + ic; K[i] = ic > g ? 1 : 0;
+  }
+}
+function reset() {
+  S = { p: { x: L.start.x, y: L.start.y, vx: 0, vy: 0, ground: false, face: 1 }, rope: null, shot: null, stun: 0, reelT: 0, next: 0, t: 0, time: S ? S.time : 0,
+    deaths: S ? S.deaths : 0, dead: 0, won: false, run: false, broken: {}, cr: {}, fx: [] };
+}
+function tile(x, y) {
+  const cx = Math.floor(x / T), cy = Math.floor(y / T), r = L.rows[cy];
+  if (!r || cx < 0 || cx >= L.w) return '#';
+  const c = S.broken[cy * L.w + cx] ? '.' : r[cx];
+  if (c === 'C' || c === 'M') return c; // devices keep their exact block
+  if (c === 'A' || c === 'V') return Math.abs(x - cx * T - T / 2) <= 5 ? c : '.'; // blades are a thin strip down the middle of the tile
+  if (c === '<' || c === '>') return Math.abs(y - cy * T - T / 2) <= 5 ? c : '.';
+  const i = (y | 0) * L.pw + (x | 0);
+  if (L.F[i] > .5) return L.K[i] ? 'I' : '#';
+  return c === '#' || c === 'I' ? '.' : c;
+}
+const solid = (x, y) => SOLID.includes(tile(x, y));
+function boxHit() { const p = S.p; for (const [a, b] of BOX) { const c = tile(p.x + a * HS, p.y + b * HS); if (SOLID.includes(c)) return c; } return ''; }
+const piv = () => S.rope.pts[S.rope.pts.length - 1];
+function ringPos(r, t) { const k = (1 - Math.cos(2 * Math.PI * t / r[4])) / 2; return { x: (r[0] + (r[2] - r[0]) * k + .5) * T, y: (r[1] + (r[3] - r[1]) * k + .5) * T }; }
+
+// ponytail: 2px ray march, fine for rope-length rays on small maps; switch to grid DDA if maps or ray counts grow
+function raycast(x0, y0, x1, y1) {
+  const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 2);
+  let px = x0, py = y0;
+  for (let i = 1; i <= n; i++) {
+    const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n, c = tile(x, y);
+    if (SOLID.includes(c)) return { x: px, y: py, tx: x, ty: y, c };
+    px = x; py = y;
+  }
+  return null;
+}
+
+// Where a shot in direction (dx,dy) would end: a ring, a hookable tile, or a miss.
+function probe(dx, dy) {
+  const p = S.p, d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+  const ex = p.x + dx * MAXR, ey = p.y + dy * MAXR, h = raycast(p.x, p.y, ex, ey);
+  let ring = -1, rd = h ? Math.hypot(h.x - p.x, h.y - p.y) : MAXR;
+  L.rings.forEach((r, i) => {
+    const c = ringPos(r, S.t), t = (c.x - p.x) * dx + (c.y - p.y) * dy;
+    if (t > 0 && t < rd && Math.abs((c.x - p.x) * dy - (c.y - p.y) * dx) < 16) { ring = i; rd = t; }
+  });
+  if (ring >= 0) { const c = ringPos(L.rings[ring], S.t); return { x: c.x, y: c.y, ok: true, ring, len: Math.hypot(c.x - p.x, c.y - p.y) }; }
+  if (!h) return { x: ex, y: ey, ok: false };
+  return { x: h.x, y: h.y, ok: HOOK.includes(h.c), ring: -1, len: rd, c: h.c, cell: Math.floor(h.ty / T) * L.w + Math.floor(h.tx / T) };
+}
+function fire(dx, dy) { // the hook flies out at SHOT speed and only grabs when it arrives (see step)
+  if (S.stun > 0) return false; // still dazed from hitting a wall
+  const h = probe(dx, dy), p = S.p;
+  S.run = true; S.rope = null; p.face = dx >= 0 ? 1 : -1;
+  S.shot = { x0: p.x, y0: p.y, tx: h.x, ty: h.y, d: 0, D: Math.hypot(h.x - p.x, h.y - p.y) || 1, h };
+  return h.ok;
+}
+function retract() {
+  const p = S.p;
+  if (S.rope && S.reelT > 0 && !p.ground) { // let go while hauling in: slingshot out of the swing
+    p.vx *= FLING; p.vy *= FLING; S.fx.push({ k: 'jolt', x: p.x, y: p.y, t: .15, m: .5 });
+  }
+  S.rope = S.shot = null;
+}
+function jump() { const p = S.p; if (S.rope || !p.ground || S.dead) return false; p.vy = -JUMP; p.ground = false; S.run = true; return true; }
+function die() { S.dead = .6; S.deaths++; S.rope = S.shot = null; S.fx.push({ k: 'ouch', x: S.p.x, y: S.p.y, t: .6 }); }
+
+function move(dx, dy) {
+  const p = S.p, was = p.ground; let c;
+  p.x += dx;
+  if (dx && (c = boxHit())) {
+    let up = 0; // walk or slide up a slope instead of stopping dead
+    if (c !== 'M') for (let k = 1, m = Math.min(6, Math.abs(dx) * 2 + 1); k <= m && !up; k++) { p.y -= k; if (boxHit()) p.y += k; else up = k; }
+    if (!up) {
+      p.x -= dx;
+      if (c === 'M') p.vx = -Math.sign(dx) * Math.max(Math.abs(p.vx) * .9, 480);
+      else if (S.rope && !was && Math.abs(p.vx) > OUCH) { // hit too hard: it hurts, the cat lets go and drops
+        S.fx.push({ k: 'ouch', x: p.x, y: p.y, t: .6 }, { k: 'jolt', x: p.x, y: p.y, t: .3, m: 1 });
+        S.rope = S.shot = null; S.stun = .7; p.vx *= -.35;
+      } else if (S.rope && !was && Math.abs(p.vx) > 60) { // hanging on the rope and slamming into a wall: kick back off it
+        S.fx.push({ k: 'jolt', x: p.x, y: p.y, t: .2, m: Math.min(1, Math.abs(p.vx) / 900) }); p.vx *= -WALL_BOUNCE;
+      } else p.vx = 0;
+    }
+  }
+  p.y += dy; p.ground = false;
+  if (dy && (c = boxHit())) {
+    const sg = Math.sign(dy); p.y -= dy;
+    for (let k = Math.abs(dy); k >= 1; k--) { p.y += sg; if (boxHit()) { p.y -= sg; break; } }
+    if (dy > 0) {
+      p.ground = c !== 'M';
+      if (p.vy > 520) S.fx.push({ k: 'land', x: p.x, y: p.y + HS, t: .3, m: Math.min(1, p.vy / 1100) });
+    }
+    p.vy = c === 'M' ? -Math.sign(dy) * Math.max(Math.abs(p.vy) * .92, 760) : 0;
+  } else if (was && dy > 0 && !S.rope) { // stay glued to the ground when walking downhill
+    for (let k = 1; k <= 4 && !p.ground; k++) { p.y += 1; if ((c = boxHit())) { p.y -= 1; p.ground = c !== 'M'; if (p.ground) p.vy = 0; break; } }
+    if (!p.ground && !c) p.y -= 4;
+  }
+}
+
+// Rope bends around land and blocks: each bend stores the side it wraps on and the length it consumed.
+function wrap() {
+  const rope = S.rope, p = S.p, a = piv(), h = raycast(a.x, a.y, p.x, p.y);
+  if (h) {
+    let best = null, bd = 1e9; // a free point just outside the bump that sees both ends of the blocked stretch
+    for (const [ox, oy] of RING) {
+      const cx = h.tx + ox, cy = h.ty + oy;
+      if (solid(cx, cy) || raycast(a.x, a.y, cx, cy) || raycast(cx, cy, p.x, p.y)) continue;
+      const d = Math.hypot(cx - a.x, cy - a.y) + Math.hypot(p.x - cx, p.y - cy);
+      if (d < bd) { bd = d; best = { x: cx, y: cy }; }
+    }
+    if (best && rope.pts.length < 40) {
+      best.seg = Math.hypot(best.x - a.x, best.y - a.y);
+      best.s = Math.sign((best.x - a.x) * (p.y - best.y) - (best.y - a.y) * (p.x - best.x)) || 1; // which way the rope turns here
+      rope.len = Math.max(8, rope.len - best.seg);
+      rope.pts.push(best);
+    }
+  }
+  while (rope.pts.length > 1) {
+    const c = piv(), b = rope.pts[rope.pts.length - 2];
+    const cr = (c.x - b.x) * (p.y - c.y) - (c.y - b.y) * (p.x - c.x);
+    if (cr * c.s < -.5 * c.seg) { rope.pts.pop(); rope.len += c.seg; } else break;
+  }
+}
+
+// Segment vs box (Liang-Barsky): true when the rope segment touches a blade's sharp-side strip.
+function segRect(x0, y0, x1, y1, r) {
+  let t0 = 0, t1 = 1; const dx = x1 - x0, dy = y1 - y0;
+  for (const [pp, q] of [[-dx, x0 - r[0]], [dx, r[2] - x0], [-dy, y0 - r[1]], [dy, r[3] - y0]]) {
+    if (pp === 0) { if (q < 0) return false; continue; }
+    const t = q / pp;
+    if (pp < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+  }
+  return true;
+}
+
+function step(dt, reel, swing) {
+  const p = S.p, real = dt; dt *= SPEED;
+  if (S.fx.length) S.fx = S.fx.filter(f => (f.t -= dt) > 0);
+  if (S.won) return;
+  if (S.dead > 0) { S.dead -= dt; if (S.dead <= 0) reset(); return; }
+  S.t += dt; if (S.run) S.time += real;
+  if (S.stun > 0) S.stun -= dt;
+  if (S.reelT > 0) S.reelT -= dt;
+  p.vy += G * dt;
+  const w = tile(p.x, p.y);
+  if (w === 'u') p.vy -= 2600 * dt; else if (w === 'l') p.vx -= 1000 * dt; else if (w === 'r') p.vx += 1000 * dt;
+  if (S.shot && (S.shot.d += SHOT * dt) >= S.shot.D) { // the flying hook arrives
+    const h = S.shot.h; let ax = h.x, ay = h.y; S.shot = null;
+    if (h.ok && h.ring >= 0) { const c = ringPos(L.rings[h.ring], S.t); ax = c.x; ay = c.y; }
+    const len = Math.hypot(ax - p.x, ay - p.y);
+    if (h.ok && len <= MAXR * 1.15) S.rope = { pts: [{ x: ax, y: ay }], len, ring: h.ring, c: h.c, cell: h.cell };
+    else S.fx.push({ k: 'miss', x: ax, y: ay, t: .2 });
+  }
+  let rope = S.rope;
+  if (rope) {
+    if (rope.ring >= 0) { const c = ringPos(L.rings[rope.ring], S.t); rope.pts[0].x = c.x; rope.pts[0].y = c.y; }
+    else if (rope.c === 'C' && (S.cr[rope.cell] = (S.cr[rope.cell] || 0) + dt) > 1) {
+      S.broken[rope.cell] = 1; S.fx.push({ k: 'break', x: rope.pts[0].x, y: rope.pts[0].y, t: .5 }); rope = S.rope = null;
+    }
+  }
+  if (swing) p.face = Math.sign(swing);
+  if (rope) {
+    const a = piv(), d0 = Math.hypot(p.x - a.x, p.y - a.y) || 1;
+    if (reel > 0 && rope.len > 14) {
+      S.reelT = .25;
+      const nl = Math.max(14, rope.len - REEL_IN * reel * dt);
+      if (d0 >= rope.len - 1.5) { // taut: shortening the rope speeds the swing up (angular momentum)
+        const ux = (p.x - a.x) / d0, uy = (p.y - a.y) / d0, vr = p.vx * ux + p.vy * uy, k = Math.min(1.5, Math.pow(rope.len / nl, REEL_KICK)) - 1;
+        p.vx += (p.vx - vr * ux) * k; p.vy += (p.vy - vr * uy) * k;
+      }
+      rope.len = nl;
+    } else if (reel < 0) {
+      const tot = rope.len + rope.pts.reduce((s, q) => s + (q.seg || 0), 0);
+      if (tot < MAXR) rope.len += Math.min(MAXR - tot, -REEL_OUT * reel * dt);
+    }
+    if (!p.ground && swing) { // shift body weight along the swing arc; momentum has to be built up over several swings
+      const ux = (p.x - a.x) / d0, uy = (p.y - a.y) / d0, k = (uy >= 0 ? swing : -swing) * SWING * dt;
+      if (d0 >= rope.len - 3) { p.vx += uy * k; p.vy -= ux * k; } else p.vx += swing * 120 * dt;
+    }
+  } else if (!p.ground) p.vx += swing * 120 * dt;
+  if (p.ground) p.vx = swing ? swing * WALK : p.vx * (1 - Math.min(1, 10 * dt)); // on the ground left/right walks
+  const sp = Math.hypot(p.vx, p.vy); if (sp > VMAX) { p.vx *= VMAX / sp; p.vy *= VMAX / sp; }
+  let nx = p.x + p.vx * dt, ny = p.y + p.vy * dt;
+  if (rope) {
+    const a = piv(), dx = nx - a.x, dy = ny - a.y, d = Math.hypot(dx, dy);
+    if (d > rope.len) {
+      nx = a.x + dx / d * rope.len; ny = a.y + dy / d * rope.len;
+      const vr = (p.vx * dx + p.vy * dy) / d;
+      if (vr > 0) { p.vx -= vr * dx / d; p.vy -= vr * dy / d; }
+      if (vr > 320) S.fx.push({ k: 'jolt', x: p.x, y: p.y, t: .25, m: Math.min(1, vr / 900) }); // the rope catches the falling weight
+    }
+  }
+  move(nx - p.x, ny - p.y);
+  if (S.rope) {
+    wrap();
+    const a = piv(); rope.len = Math.max(rope.len, Math.hypot(p.x - a.x, p.y - a.y)); // a wall blocked the pull
+    for (const b of L.blades) {
+      let q = rope.pts[0], cut = false;
+      for (let i = 1; i <= rope.pts.length && !cut; i++) { const n = rope.pts[i] || p; cut = segRect(q.x, q.y, n.x, n.y, b); q = n; }
+      if (cut) { S.fx.push({ k: 'cut', x: (b[0] + b[2]) / 2, y: (b[1] + b[3]) / 2, t: .5 }); S.rope = null; break; }
+    }
+  }
+  for (const sx of [p.x - HS + 2, p.x + HS - 2])
+    if (tile(sx, p.y + HS - 1) === '^' && (p.y + HS - 1) % T > 12) return die();
+  for (const [a, b] of CORN) {
+    const x = p.x + a * HS, y = p.y + b * HS;
+    if (tile(x, y) === 'x' && Math.hypot(p.x - (Math.floor(x / T) + .5) * T, p.y - (Math.floor(y / T) + .5) * T) < 20) return die();
+  }
+  for (const b of L.blades) if (p.x + HS > b[0] && p.x - HS < b[2] && p.y + HS > b[1] && p.y - HS < b[3]) return die(); // touched a blade's sharp end
+  if (L.orbs) { // race: eat the orbs in order
+    const o = L.orbs[S.next];
+    if (Math.hypot(p.x - o.x, p.y - o.y) < 26) { S.fx.push({ k: 'orb', x: o.x, y: o.y, t: .6 }); if (++S.next >= L.orbs.length) S.won = true; }
+  } else if (Math.hypot(p.x - L.goal.x, p.y - L.goal.y) < 22) S.won = true;
+}
+/*ENDSIM*/
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d');
+const THEME = {
+  meadow: { name: '초원', sky: ['#bfe6ff', '#eaf7d5'], ground: '#8d5d3e', edge: '#6b4329', cap: '#6cc04a', slip: '#cfe9f7' },
+  mountain: { name: '설산', sky: ['#cfe3f5', '#f3f7fb'], ground: '#7b8494', edge: '#555d6c', cap: '#f6faff', slip: '#bfe9ff' },
+  jungle: { name: '정글', sky: ['#bfe3c0', '#e8f4c8'], ground: '#5f4c37', edge: '#3f3122', cap: '#3f9c4a', slip: '#9fd9c9' },
+  city: { name: '도심', sky: ['#f6c9a6', '#ffe9c9'], ground: '#626a7d', edge: '#434959', cap: '#cdd3de', slip: '#bfe4ff' },
+};
+const VIEW_H = 16; // tiles down the landscape screen
+const INK = '#3a2a22', ROPE = '#f2a23a', STEEL = '#dfe6ee', DANGER = '#e5484d', TOP = 84, PAD = 0, DEAD = 16;
+const IMG = {};
+for (const n of ['cat_idle', 'cat_hang', 'cat_fly', 'goal', 'blade', 'fan', 'mushroom', 'ring', 'bg_meadow', 'bg_mountain', 'bg_jungle', 'bg_city']) {
+  IMG[n] = new Image(); IMG[n].src = 'art/' + n + (n.startsWith('bg_') ? '.jpg' : '.png');
+}
+const has = n => IMG[n].complete && IMG[n].naturalWidth > 0;
+const hero = $('hero'), noHero = () => { hero.hidden = true; };
+hero.onerror = noHero; if (hero.complete && !hero.naturalWidth) noHero();
+
+let introT = 9, goT = 0;
+let state = 'menu', scale = 1, ox = 0, oy = 0, stickP = null, aim = { x: .6, y: -1 }, mouse = null;
+let noLock = false; // the browser refused to capture the mouse
+const AIM_R = 70, locked = () => document.pointerLockElement === stage;
+document.addEventListener('pointerlockerror', () => { noLock = true; });
+let PC = matchMedia('(hover:hover) and (pointer:fine)').matches;
+const world = (cx, cy) => { const r = stage.getBoundingClientRect(); return [(cx - r.left - ox) / scale, (cy - r.top - oy) / scale]; };
+const keys = {};
+const PAR = [12, 20, 12, 18, 28, 16, 20, 28, 16, 24, 16, 24, 20, 30, 24, 24, 24, 30, 36, 40]; // seconds for 3 stars; twice that for 2; any clear is 1
+const UPS = [['reel', '감기·풀기 속도', '줄을 감고 푸는 속도 +10%'], ['swing', '반동 힘', '매달려 흔드는 힘 +8%'], ['jump', '점프 높이', '점프하는 힘 +4%'],
+  ['walk', '걷기 속도', '땅에서 걷는 속도 +10%'], ['shot', '발사 속도', '줄이 날아가는 속도 +15%'], ['len', '줄 길이', '줄 최대 길이 +4%'], ['resist', '저항력', '벽에 세게 부딪혀도 줄을 놓지 않고 버티는 힘 +8%']];
+const RACE0 = LEVELS.findIndex(l => l.race), INTRO = 6; // intro: 1s whole map, 2s zoom to the cat, 3s countdown
+LEVELS.forEach(l => { if (l.race) genRace(l); });
+const par = i => LEVELS[i].par || PAR[i], lvNo = i => LEVELS[i].race ? 'R' + (i - RACE0 + 1) : String(i + 1);
+const starsFor = (i, t) => t <= par(i) ? 3 : t <= par(i) * 2 ? 2 : 1, starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+const earned = () => Object.keys(cleared).reduce((a, i) => a + (LEVELS[i] ? starsFor(+i, cleared[i]) : 0), 0); // stars are the currency
+const upCost = lv => lv <= 3 ? 1 : lv <= 6 ? 2 : lv <= 9 ? 3 : 4; // stars to reach that level: Lv1-3 cost 1, Lv4-6 2, Lv7-9 3, Lv10 4
+const spent = () => UPS.reduce((a, u) => { for (let l = 1; l <= UP[u[0]]; l++) a += upCost(l); return a; }, 0), wallet = () => earned() - spent() - skinSpent();
+// Costume skins: always the same kitten underneath. [id, name, price in stars]; art/skin_<id>_{idle,hang,fly}.png
+const SKINS = [['base', '등산 냥', 0], ['block', '네모 블록 냥', 2], ['dracula', '드라큘라 냥', 2], ['log', '통나무 방망이 냥', 2], ['poop', '황금 응가 냥', 2],
+  ['shark', '상어 잠옷 냥', 2], ['banana', '바나나 냥', 2], ['ninja', '닌자 냥', 2], ['astronaut', '우주비행사 냥', 2], ['dino', '공룡 잠옷 냥', 2]];
+let skin = { own: ['base'], cur: 'base' };
+try { const k = JSON.parse(localStorage.getItem('ropecat-skin')); if (k && Array.isArray(k.own)) skin = { own: k.own.filter(id => SKINS.some(q => q[0] === id)), cur: k.cur }; } catch (e) {}
+if (!skin.own.includes('base')) skin.own.unshift('base');
+if (!skin.own.includes(skin.cur)) skin.cur = 'base';
+const skinSpent = () => skin.own.reduce((a, id) => a + SKINS.find(q => q[0] === id)[2], 0);
+const skinFile = (id, pose) => id === 'base' ? 'cat_' + pose : 'skin_' + id + '_' + pose;
+function pose(n) { // sprite for the worn skin, loaded on first use; the plain cat until it has arrived
+  const k = skinFile(skin.cur, n);
+  if (!IMG[k]) { IMG[k] = new Image(); IMG[k].src = 'art/' + k + '.png'; }
+  return has(k) ? k : 'cat_' + n;
+}
+const saveUp = () => { applyUp(); try { localStorage.setItem('ropecat-up', JSON.stringify(UP)); } catch (e) {} };
+let cleared = {}; try { cleared = JSON.parse(localStorage.getItem('ropecat-clear')) || {}; } catch (e) {}
+try { const u = JSON.parse(localStorage.getItem('ropecat-up')) || {}; for (const [k] of UPS) UP[k] = Math.max(0, Math.min(10, u[k] | 0)); } catch (e) {}
+if (wallet() < 0) for (const [k] of UPS) UP[k] = 0; // saved upgrades without the stars to pay for them
+applyUp();
+
+function spr(name, x, y, size, rot, flip) {
+  ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(IMG[name], -size / 2, -size / 2, size, size); ctx.restore();
+}
+
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function terrainCanvas(L, th) { // paint the density field once per level: soil, a grass/snow cap on every upward face, a dark rim
+  if (L.cv) return L.cv;
+  const pw = L.pw, ph = L.h * T, cv = document.createElement('canvas'); cv.width = pw; cv.height = ph;
+  const c2 = cv.getContext('2d'), im = c2.createImageData(pw, ph), px = im.data, F = L.F, K = L.K;
+  const soil = rgb(th.ground), rim = rgb(th.edge), cap = rgb(th.cap), slip = rgb(th.slip), put = (o, c, k) => { px[o] = c[0] * k; px[o + 1] = c[1] * k; px[o + 2] = c[2] * k; };
+  for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+    const i = y * pw + x, f = F[i]; if (f <= .47) continue;
+    const o = i * 4; px[o + 3] = Math.min(1, (f - .47) / .06) * 255;
+    if (K[i]) { put(o, slip, f < .57 ? .8 : 1); if ((x + y * 1.3) % 34 < 5 && f > .6) { px[o] = px[o + 1] = px[o + 2] = 255; } continue; }
+    const top = y >= 9 && F[i - 9 * pw] < .5, deep = y >= 13 && F[i - 13 * pw] < .5;
+    if (top) put(o, cap, .96 + .08 * hash(x >> 1, y >> 1, 5));
+    else if (f < .56 || deep) put(o, rim, 1);
+    else put(o, soil, (hash(x >> 2, y >> 2, 9) < .1 ? .86 : 1) * (.97 + .06 * vnoise(x / 40, y / 40, 3)));
+  }
+  c2.putImageData(im, 0, 0); return L.cv = cv;
+}
+
+function drawOrbs(z) { // numbered orbs still to eat; the next one is solid, later ones a little faded
+  const cols = ['#ffcc33', '#58b8ff', '#ff7fb0'];
+  L.orbs.forEach((o, i) => {
+    if (i < S.next) return;
+    const r = 13 * z; ctx.globalAlpha = i === S.next ? 1 : .8;
+    ctx.fillStyle = cols[i % 3]; ctx.strokeStyle = INK; ctx.lineWidth = 2 * z; ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(o.x - r * .35, o.y - r * .38, r * .28, 0, 7); ctx.fill();
+    ctx.fillStyle = INK; ctx.font = Math.round(17 * z) + 'px Jua, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(i + 1, o.x, o.y + z);
+  });
+  ctx.globalAlpha = 1; ctx.textBaseline = 'alphabetic';
+}
+
+function drawTile(c, x, y, th, now) {
+  const X = x * T, Y = y * T, above = tile(X + 1, Y - 1);
+  if (c === '#') {
+    ctx.fillStyle = th.ground; ctx.fillRect(X - .5, Y - .5, T + 1, T + 1);
+    ctx.fillStyle = th.edge; const k = (x * 7 + y * 13) % 5; ctx.fillRect(X + 4 + k * 4, Y + 12 + k * 2, 6, 3); ctx.fillRect(X + 18 - k * 2, Y + 22, 4, 3);
+    if (!SOLID.includes(above)) { ctx.fillStyle = th.cap; ctx.fillRect(X - .5, Y - .5, T + 1, 8); ctx.fillStyle = th.edge; ctx.fillRect(X - .5, Y + 7, T + 1, 1.5); }
+  } else if (c === 'I') {
+    ctx.fillStyle = th.slip; ctx.fillRect(X - .5, Y - .5, T + 1, T + 1);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X + 6, Y + 20); ctx.lineTo(X + 20, Y + 6); ctx.moveTo(X + 16, Y + 26); ctx.lineTo(X + 26, Y + 16); ctx.stroke();
+  } else if (c === 'C') {
+    const sh = (S.cr[y * L.w + x] || 0) * 2.5 * Math.sin(now / 18);
+    ctx.fillStyle = '#b98a55'; ctx.fillRect(X + sh, Y, T, T); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.strokeRect(X + sh + .75, Y + .75, T - 1.5, T - 1.5);
+    ctx.beginPath(); ctx.moveTo(X + sh + 6, Y + 2); ctx.lineTo(X + sh + 14, Y + 14); ctx.lineTo(X + sh + 9, Y + 30); ctx.moveTo(X + sh + 14, Y + 14); ctx.lineTo(X + sh + 26, Y + 20); ctx.stroke();
+  } else if (c === 'M') {
+    if (has('mushroom')) spr('mushroom', X + T / 2, Y + T / 2 - 3, T + 10);
+    else { ctx.fillStyle = '#c98f6a'; ctx.fillRect(X + 10, Y + 14, 12, 18); ctx.fillStyle = DANGER; ctx.beginPath(); ctx.ellipse(X + T / 2, Y + 12, 17, 12, 0, 0, 7); ctx.fill(); }
+  } else if ('AV<>'.includes(c)) { // razor blade: a thin steel strip you can hook and touch; only its tip cuts
+    const d = 'AV<>'.indexOf(c), rot = [0, Math.PI, -Math.PI / 2, Math.PI / 2][d], ux = [0, 0, -1, 1][d], uy = [-1, 1, 0, 0][d];
+    const tip = (L.rows[y + uy] || '')[x + ux] !== c;
+    ctx.save(); ctx.translate(X + T / 2, Y + T / 2); ctx.rotate(rot); // drawn pointing up
+    ctx.fillStyle = '#b7c2cf'; ctx.fillRect(-5, -T / 2 - .5, 10, T + 1);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-5, T / 2 + .5); ctx.lineTo(-5, -T / 2 - .5); ctx.moveTo(5, T / 2 + .5); ctx.lineTo(5, -T / 2 - .5); ctx.stroke();
+    ctx.fillStyle = '#7d8a99'; ctx.fillRect(-1.5, -9, 3, 18);
+    if (tip) {
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-5, -T / 2, 10, 6);
+      ctx.strokeStyle = DANGER; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-6.5, -T / 2); ctx.lineTo(6.5, -T / 2); ctx.stroke();
+    }
+    ctx.restore();
+  } else if (c === '^') {
+    ctx.fillStyle = STEEL; ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < 4; i++) { ctx.moveTo(X + i * 8, Y + T); ctx.lineTo(X + i * 8 + 4, Y + 12); ctx.lineTo(X + i * 8 + 8, Y + T); }
+    ctx.fill(); ctx.stroke();
+  } else if (c === 'x') {
+    ctx.fillStyle = DANGER; ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + now / 900, r = i % 2 ? 9 : 15; ctx.lineTo(X + T / 2 + Math.cos(a) * r, Y + T / 2 + Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if ('ulr'.includes(c)) {
+    const d = 'ulr'.indexOf(c), ux = [0, -1, 1][d], uy = [-1, 0, 0][d], ph = (now / 220 + x * .37 + y * .61) % 1;
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (const o of [-9, 0, 9]) {
+      const k = ((ph + o * .04 + 1) % 1) * T, bx = X + T / 2 + (ux ? ux * (k - T / 2) : o), by = Y + T / 2 + (uy ? uy * (k - T / 2) : o);
+      ctx.moveTo(bx, by); ctx.lineTo(bx + ux * 8, by + uy * 8);
+    }
+    ctx.stroke();
+    if (has('fan') && solid(X + T / 2 - ux * T, Y + T / 2 - uy * T)) spr('fan', X + T / 2, Y + T / 2, T + 4, [0, -Math.PI / 2, Math.PI / 2][d]);
+  }
+}
+
+function draw(now) {
+  const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const th = THEME[L.theme], p = S.p, ph = h - TOP - PAD;
+  const scaleN = h / (VIEW_H * T), LW = L.w * T, LH = L.h * T;
+  const follow = (v, view, len) => len <= view ? len / 2 : Math.max(view / 2, Math.min(len - view / 2, v));
+  let camx = follow(p.x, w / scaleN, LW), camy = follow(p.y, ph / scaleN, LH); scale = scaleN;
+  if (L.race && introT < 3) { // race intro: the whole map first, then glide in to the cat
+    const k = Math.max(0, Math.min(1, (introT - 1) / 2)), e = k * k * (3 - 2 * k), fit = Math.min(w / LW, ph / LH) * .96;
+    scale = fit * Math.pow(scaleN / fit, e); camx = LW / 2 + (camx - LW / 2) * e; camy = LH / 2 + (camy - LH / 2) * e;
+  }
+  const vw = w / scale, vh = ph / scale, zoom = Math.max(1, Math.pow(scaleN / scale, 1.25)); // zoom: keep markers readable from afar
+  ox = w / 2 - camx * scale; oy = TOP + ph / 2 - camy * scale;
+  for (const f of S.fx) if (f.k === 'jolt' || f.k === 'land') { const a = f.m * 6 * f.t / .3; ox += Math.sin(now / 13) * a; oy += Math.cos(now / 11) * a; } // impact shake
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const bg = IMG['bg_' + L.theme];
+  if (has('bg_' + L.theme)) {
+    const s = Math.max(w / bg.width, h / bg.height) * 1.12, fx = LW > vw ? Math.max(0, Math.min(1, (camx - vw / 2) / (LW - vw))) : .5, fy = LH > vh ? Math.max(0, Math.min(1, (camy - vh / 2) / (LH - vh))) : .5;
+    ctx.drawImage(bg, -(bg.width * s - w) * fx, -(bg.height * s - h) * fy, bg.width * s, bg.height * s);
+  } else { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, th.sky[0]); g.addColorStop(1, th.sky[1]); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+  ctx.lineCap = ctx.lineJoin = 'round';
+  const x0 = Math.floor(-ox / scale / T) - 1, x1 = Math.floor((w - ox) / scale / T) + 1, y0 = Math.floor(-oy / scale / T) - 1, y1 = Math.floor((h - oy) / scale / T) + 1;
+  ctx.fillStyle = th.ground; // solid land beyond the level's edge
+  const vx0 = -ox / scale, vy0 = -oy / scale, vx1 = (w - ox) / scale, vy1 = (h - oy) / scale;
+  ctx.fillRect(vx0, vy0, vx1 - vx0, 1 - vy0); ctx.fillRect(vx0, LH - 1, vx1 - vx0, vy1 - LH + 1);
+  ctx.fillRect(vx0, 0, 1 - vx0, LH); ctx.fillRect(LW - 1, 0, vx1 - LW + 1, LH);
+  ctx.drawImage(terrainCanvas(L, th), 0, 0);
+  for (let y = Math.max(0, y0); y <= Math.min(L.h - 1, y1); y++) for (let x = Math.max(0, x0); x <= Math.min(L.w - 1, x1); x++) {
+    const c = L.rows[y][x]; if (!'#I.SG'.includes(c) && !S.broken[y * L.w + x]) drawTile(c, x, y, th, now);
+  }
+
+  const g = L.orbs ? L.orbs[Math.min(S.next, L.orbs.length - 1)] : L.goal, pulse = .5 + .5 * Math.sin(now / 300);
+  ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = .5 + .4 * pulse; ctx.lineWidth = 3 * zoom; ctx.beginPath(); ctx.arc(g.x, g.y, (20 + pulse * 4) * zoom, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  if (L.orbs) drawOrbs(zoom);
+  else if (has('goal')) spr('goal', g.x, g.y - 6, 50);
+  else { ctx.fillStyle = INK; ctx.fillRect(g.x - 1.5, g.y - 20, 3, 36); ctx.fillStyle = DANGER; ctx.beginPath(); ctx.moveTo(g.x, g.y - 20); ctx.lineTo(g.x + 18, g.y - 12); ctx.lineTo(g.x, g.y - 4); ctx.fill(); }
+  for (const r of L.rings) {
+    const c = ringPos(r, S.t);
+    if (has('ring')) { spr('ring', c.x, c.y - 14, 56); continue; }
+    ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(c.x, c.y, 9, 0, 7); ctx.stroke();
+    ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(c.x, c.y, 9, 0, 7); ctx.stroke();
+  }
+
+  let am = PC && !locked() ? null : aim; // touch: the stick's last angle; PC: the captured mouse's movement
+  $('lockhint').hidden = !(PC && state === 'play' && !locked() && !noLock && now - goT > 900);
+  if (!locked() && noLock && mouse && state === 'play') { const [wx, wy] = world(mouse.x, mouse.y); am = { x: wx - p.x, y: wy - p.y }; }
+  if (am && !S.dead) {
+    const hit = probe(am.x, am.y);
+    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 8]); ctx.beginPath(); ctx.arc(p.x, p.y, MAXR, 0, 7); ctx.stroke(); // rope reach
+    ctx.strokeStyle = hit.ok ? '#ffffff' : 'rgba(255,255,255,.55)'; ctx.lineWidth = 2; ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(hit.x, hit.y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = hit.ok ? '#7be36b' : '#9aa3ad'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(hit.x, hit.y, hit.ok ? 6 : 4, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  const rope = S.rope;
+  if (rope) for (const [col, lw] of [[INK, 4.5], [ROPE, 2.5]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(rope.pts[0].x, rope.pts[0].y);
+    for (const q of rope.pts) ctx.lineTo(q.x, q.y);
+    const a = piv(), slack = rope.len - Math.hypot(p.x - a.x, p.y - a.y);
+    if (slack > 2) ctx.quadraticCurveTo((a.x + p.x) / 2, (a.y + p.y) / 2 + Math.min(60, slack * .7), p.x, p.y); else ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  if (S.shot) { // the hook still in flight
+    const q = S.shot, k = q.d / q.D, hx = q.x0 + (q.tx - q.x0) * k, hy = q.y0 + (q.ty - q.y0) * k;
+    for (const [col, lw] of [[INK, 4.5], [ROPE, 2.5]]) { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(hx, hy); ctx.stroke(); }
+    ctx.fillStyle = STEEL; ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(hx, hy, 4, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  ctx.globalAlpha = S.dead > 0 ? Math.max(0, S.dead / .6) : 1;
+  const flip = p.face < 0, taut = rope && !p.ground;
+  if (taut && has('cat_hang')) { const a = piv(); spr(pose('hang'), p.x, p.y + 6, 60, Math.atan2(a.x - p.x, p.y - a.y), flip); }
+  else if (!p.ground && has('cat_fly')) spr(pose('fly'), p.x, p.y, 58, Math.max(-.6, Math.min(.6, p.vx / 700)), flip);
+  else if (has('cat_idle')) spr(pose('idle'), p.x, p.y - 13, 54, 0, flip);
+  else {
+    ctx.fillStyle = '#ff8a3d'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(p.x - 9, p.y - 6); ctx.lineTo(p.x - 7, p.y - 15); ctx.lineTo(p.x - 1, p.y - 9); ctx.lineTo(p.x + 1, p.y - 9); ctx.lineTo(p.x + 7, p.y - 15); ctx.lineTo(p.x + 9, p.y - 6);
+    ctx.arc(p.x, p.y, 10, -.6, Math.PI + .6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(p.x - 3.5, p.y - 1, 1.6, 0, 7); ctx.arc(p.x + 3.5, p.y - 1, 1.6, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (L.race && state === 'intro' && introT < 3) { // show where the cat starts while the camera is far away
+    ctx.strokeStyle = '#ff8a3d'; ctx.lineWidth = 3 * zoom; ctx.beginPath(); ctx.arc(p.x, p.y, (16 + 5 * Math.sin(now / 200)) * zoom, 0, 7); ctx.stroke();
+  }
+  if (S.stun > 0) { ctx.font = "13px Jua, sans-serif"; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = DANGER; ctx.strokeText('아야!', p.x, p.y - 24); ctx.fillText('아야!', p.x, p.y - 24); }
+  for (const f of S.fx) {
+    if (f.k === 'miss') { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(f.x, f.y); ctx.stroke(); ctx.setLineDash([]); }
+    else if (f.k !== 'jolt') {
+      const k = 1 - f.t / .6; ctx.strokeStyle = f.k === 'cut' ? '#ffffff' : f.k === 'ouch' ? DANGER : f.k === 'orb' ? '#ffd34d' : '#b98a55'; ctx.lineWidth = 3; ctx.globalAlpha = 1 - k; ctx.beginPath();
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.moveTo(f.x + Math.cos(a) * (6 + k * 10), f.y + Math.sin(a) * (6 + k * 10)); ctx.lineTo(f.x + Math.cos(a) * (12 + k * 20), f.y + Math.sin(a) * (12 + k * 20)); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+  // arrow to an off-screen goal
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const gx = g.x * scale + ox, gy = g.y * scale + oy;
+  if (gx < 0 || gx > w || gy < TOP || gy > h - PAD) {
+    const ax = Math.max(26, Math.min(w - 26, gx)), ay = Math.max(TOP + 26, Math.min(h - PAD - 26, gy)), a = Math.atan2(gy - ay, gx - ax);
+    ctx.save(); ctx.translate(ax, ay); ctx.rotate(a); ctx.fillStyle = DANGER; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -11); ctx.lineTo(-3, 0); ctx.lineTo(-8, 11); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    if (L.orbs) { // which orb the arrow points at
+      const bx = ax - Math.cos(a) * 24, by = ay - Math.sin(a) * 24;
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by, 11, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = INK; ctx.font = '15px Jua, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(S.next + 1, bx, by + 1); ctx.textBaseline = 'alphabetic';
+    }
+  }
+  if (L.race) { // countdown, GO flash, orb progress
+    const big = state === 'intro' && introT >= 3 ? String(3 - Math.floor(introT - 3)) : state === 'play' && now - goT < 700 ? '출발!' : '';
+    ctx.textAlign = 'center';
+    if (big) { ctx.font = '110px Jua, sans-serif'; ctx.lineWidth = 12; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ff8a3d'; ctx.strokeText(big, w / 2, TOP + ph / 2 + 30); ctx.fillText(big, w / 2, TOP + ph / 2 + 30); }
+    else if (state === 'intro') { ctx.font = '15px Jua, sans-serif'; ctx.lineWidth = 4; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = INK; ctx.strokeText('화면을 누르면 건너뛰기', w / 2, h - 16); ctx.fillText('화면을 누르면 건너뛰기', w / 2, h - 16); }
+    const t = `${lvNo(L.i)}. ${L.name} · 구슬 ${S.next}/${L.orbs.length}`; if ($('lname').textContent !== t) $('lname').textContent = t;
+  }
+  $('time').textContent = S.time.toFixed(1);
+  const lab = S.rope ? '회수' : '점프'; if ($('act').textContent !== lab) $('act').textContent = lab;
+  $('gauge').style.width = (rope ? Math.min(100, (rope.len + rope.pts.reduce((t, q) => t + (q.seg || 0), 0)) / MAXR * 100) : 0) + '%';
+}
+
+function showMenu(title, sub, next) {
+  if (document.pointerLockElement) document.exitPointerLock();
+  $('ovt').textContent = title; $('ovs').textContent = sub; $('resume').hidden = true; $('stars').textContent = wallet(); setHero();
+  const btns = LEVELS.map((lv, i) => {
+    const b = document.createElement('button');
+    b.id = 'level-' + i; if (i === next) b.className = 'next'; b.style.borderLeftColor = THEME[lv.theme].cap === '#f6faff' ? '#9fc4e6' : THEME[lv.theme].cap;
+    const st = cleared[i] ? starsFor(i, cleared[i]) : 0;
+    b.innerHTML = `<b>${lvNo(i)} <small>${starText(st)}</small></b><span>${lv.name}</span><span>${cleared[i] ? '최고 ' + cleared[i].toFixed(1) + '초' : '★3 ' + par(i) + '초 이내'}</span>`;
+    b.onclick = () => play(i);
+    return b;
+  });
+  $('levels').replaceChildren(...btns.filter((b, i) => !LEVELS[i].race)); $('races').replaceChildren(...btns.filter((b, i) => LEVELS[i].race));
+  $('ov').hidden = false; $('top').hidden = $('stick').hidden = $('fire').hidden = $('act').hidden = true;
+}
+function setHero() { const src = 'art/' + skinFile(skin.cur, 'idle') + '.png'; if (!hero.src.endsWith(src)) { hero.hidden = false; hero.src = src; } }
+function showSkins() {
+  $('skinsub').textContent = `가진 별 ★${wallet()} · 한 번 사면 계속 내 것 · 뭘 입어도 고양이는 고양이`;
+  $('skinlist').replaceChildren(...SKINS.map(([id, name, price]) => {
+    const own = skin.own.includes(id), cur = skin.cur === id, d = document.createElement('div'); d.className = 'skin' + (cur ? ' cur' : '');
+    d.innerHTML = `<img src="art/${skinFile(id, 'idle')}.png" alt=""><b>${name}</b><button id="skin-${id}" ${cur || (!own && wallet() < price) ? 'disabled' : ''}>${cur ? '입는 중' : own ? '입기' : '구매 ★' + price}</button>`;
+    d.querySelector('img').onerror = () => { d.hidden = true; }; // art not delivered yet: keep it out of the shop
+    d.querySelector('button').onclick = () => {
+      if (!skin.own.includes(id)) { if (wallet() < price) return; skin.own.push(id); } // buying puts it on right away
+      skin.cur = id; try { localStorage.setItem('ropecat-skin', JSON.stringify(skin)); } catch (e) {}
+      showSkins(); setHero();
+    };
+    return d;
+  }));
+  $('skinshop').hidden = false; $('stars').textContent = wallet();
+}
+$('skinbtn').onclick = showSkins; $('skinclose').onclick = () => { $('skinshop').hidden = true; };
+function showShop() {
+  $('shopsub').textContent = `가진 별 ★${wallet()} · 지금까지 얻은 별 ${earned()}/${LEVELS.length * 3} · 강화 비용 Lv1~3 ★1, Lv4~6 ★2, Lv7~9 ★3, Lv10 ★4`;
+  $('ups').replaceChildren(...UPS.map(([k, name, desc]) => {
+    const row = document.createElement('div'), lv = UP[k]; row.className = 'up';
+    row.innerHTML = `<div><b>${name}</b><span>${desc}</span></div><i class="pips">${Array.from({ length: 10 }, (_, n) => `<u class="t${upCost(n + 1)}">${n < lv ? '●' : '○'}</u>`).join('')}</i><button id="buy-${k}" ${lv >= 10 || wallet() < upCost(lv + 1) ? 'disabled' : ''}>${lv >= 10 ? '최대' : 'Lv' + (lv + 1) + ' ★' + upCost(lv + 1)}</button>`;
+    row.querySelector('button').onclick = () => { if (UP[k] < 10 && wallet() >= upCost(UP[k] + 1)) { UP[k]++; saveUp(); showShop(); } };
+    return row;
+  }));
+  $('shop').hidden = false; $('stars').textContent = wallet();
+}
+$('shopbtn').onclick = showShop; $('shopclose').onclick = () => { $('shop').hidden = true; };
+$('shopreset').onclick = () => { for (const [k] of UPS) UP[k] = 0; saveUp(); showShop(); };
+function play(i) {
+  setLevel(i); state = L.race ? 'intro' : 'play'; introT = 0; stickP = null; aim = { x: 36, y: -60 }; knob(0, 0, 1);
+  $('lname').textContent = `${lvNo(i)}. ${L.name}`; $('tip').textContent = PC && L.pc || L.tip; $('par').textContent = `★★★ ${par(i)}초 · ★★ ${par(i) * 2}초`;
+  $('ov').hidden = true; $('top').hidden = $('stick').hidden = $('fire').hidden = $('act').hidden = false;
+}
+function onWin() {
+  state = 'clear';
+  const best = cleared[L.i], rec = !best || S.time < best, n = starsFor(L.i, S.time), gain = Math.max(0, n - (best ? starsFor(L.i, best) : 0));
+  if (rec) { cleared[L.i] = +S.time.toFixed(2); try { localStorage.setItem('ropecat-clear', JSON.stringify(cleared)); } catch (e) {} }
+  const last = !LEVELS[L.i + 1] || !!LEVELS[L.i + 1].race !== !!L.race; // the next stage of the same kind, if any
+  showMenu(last ? '정상 정복!' : '골인!', `${lvNo(L.i)}. ${L.name} · ${starText(n)} · ${S.time.toFixed(1)}초${gain ? ' · 별 +' + gain : ''}${n < 3 ? ' · ★3은 ' + par(L.i) + '초 이내' : ''}`, last ? -1 : L.i + 1);
+}
+
+function knob(dx, dy, lim) { const d = Math.hypot(dx, dy), k = d > lim ? lim / d : 1; $('stickknob').style.transform = `translate(${dx * k}px,${dy * k}px)`; }
+const inEl = (id, e, grow) => { const b = $(id).getBoundingClientRect(); return e.clientX >= b.left - grow && e.clientX <= b.right + grow && e.clientY >= b.top - grow && e.clientY <= b.bottom + grow; };
+const blink = id => { $(id).classList.add('on'); setTimeout(() => $(id).classList.remove('on'), 130); };
+const act = () => { if (S.rope) retract(); else jump(); }; // second button: take the rope back, or jump when standing without one
+function stickMove(e) { // the stick always points the shot; its x and y also drive swing/walk and reel
+  const dx = e.clientX - stickP.x, dy = e.clientY - stickP.y, d = Math.hypot(dx, dy), k = Math.min(1, d / 44) / (d || 1);
+  stickP.nx = dx * k; stickP.ny = dy * k;
+  if (d >= DEAD) aim = { x: dx, y: dy };
+  knob(dx, dy, 44);
+}
+stage.addEventListener('pointerdown', e => {
+  if (state === 'intro' && !e.target.closest('button')) { if (introT < 3) introT = 3; return; } // tap: skip the fly-over
+  if (state !== 'play' || e.target.closest('button')) return;
+  if (e.pointerType === 'mouse') { // PC: left click shoots at the cursor, right click takes the rope back or jumps
+    e.preventDefault(); if (S.dead) return;
+    if (!locked() && !noLock) { // first click captures the mouse; from then on its movement steers the aim
+      try { const r = stage.requestPointerLock(); if (r && r.catch) r.catch(() => { noLock = true; }); } catch (err) { noLock = true; }
+      return;
+    }
+    if (e.button === 2) act();
+    else if (e.button !== 0) return;
+    else if (locked()) fire(aim.x, aim.y);
+    else { const [wx, wy] = world(e.clientX, e.clientY); fire(wx - S.p.x, wy - S.p.y); } // lock refused: shoot at the cursor instead
+    return;
+  }
+  if (inEl('fire', e, 10)) { blink('fire'); if (!S.dead) fire(aim.x, aim.y); return; }
+  if (inEl('act', e, 8)) { blink('act'); act(); return; }
+  const r = stage.getBoundingClientRect();
+  if (e.clientX - r.left >= r.width / 2 || stickP) return;
+  stickP = { id: e.pointerId, x: e.clientX, y: e.clientY, nx: 0, ny: 0 };
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') {
+    if (locked()) { // the aim turns toward the way the mouse is moving, like a stick pushed by the hand
+      aim = { x: aim.x + e.movementX, y: aim.y + e.movementY };
+      const d = Math.hypot(aim.x, aim.y); if (d > AIM_R) { aim.x *= AIM_R / d; aim.y *= AIM_R / d; }
+    } else mouse = { x: e.clientX, y: e.clientY };
+    return;
+  }
+  if (stickP && e.pointerId === stickP.id) stickMove(e);
+});
+const up = e => { if (stickP && e.pointerId === stickP.id) { stickP = null; knob(0, 0, 1); } }; // the last angle stays as the aim
+stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+stage.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') mouse = null; });
+stage.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => { if (e.code === 'Escape') { if (state === 'play' || state === 'intro') openMenu(); else if (!$('resume').hidden) resume(); }
+  if (e.code === 'KeyR' && (state === 'play' || state === 'intro')) retry();
+  if (e.code === 'Space' && state === 'play') { if (!keys.Space) act(); e.preventDefault(); } keys[e.code] = true; });
+addEventListener('keyup', e => { keys[e.code] = false; });
+const retry = () => { S.deaths++; S.time = 0; reset(); if (L.race) { state = 'intro'; introT = 3; S.time = 0; } }; // a race restarts from the countdown
+$('retry').onclick = retry;
+function openMenu() { state = 'menu'; showMenu('잠깐 멈춤', `${lvNo(L.i)}. ${L.name} 진행 중`, -1); $('resume').hidden = false; } // also frees the mouse
+function resume() { state = L.race && introT < INTRO ? 'intro' : 'play'; $('ov').hidden = true; $('top').hidden = $('stick').hidden = $('fire').hidden = $('act').hidden = false; }
+$('menu').onclick = openMenu; $('resume').onclick = resume;
+// Esc: under mouse capture the browser swallows the key and only drops the capture, so watch for that too
+document.addEventListener('pointerlockchange', () => { if (!locked() && state === 'play') openMenu(); });
+
+function inputs() {
+  let reel = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  let swing = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  if (stickP) { // one stick: left/right swings or walks, up/down reels in or out
+    if (Math.abs(stickP.nx) > .4) swing = Math.sign(stickP.nx);
+    if (stickP.ny < -.4) reel = 1; else if (stickP.ny > .4) reel = -1;
+  }
+  return [reel, swing];
+}
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dtr = Math.min(.05, (now - last) / 1000); acc += dtr; last = now;
+  if (state === 'intro' && (introT += dtr) >= INTRO) { state = 'play'; S.run = true; goT = now; } // GO: the clock starts
+  const [reel, swing] = inputs();
+  while (acc >= DT) { if (state === 'play') { step(DT, reel, swing); if (S.won) { onWin(); break; } } else if (state === 'intro') step(DT, 0, 0); acc -= DT; }
+  draw(now); requestAnimationFrame(frame);
+}
+setLevel(0); showMenu('로프 탈출', '등산 고양이의 밧줄 모험', -1); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
